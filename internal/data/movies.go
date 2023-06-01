@@ -3,6 +3,7 @@ package data
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/leandrobraga/greenlight/internal/validator"
@@ -20,6 +21,7 @@ type Movie struct {
 }
 
 func ValidateMovie(v *validator.Validator, movie *Movie) {
+	fmt.Println(movie.Title)
 	v.Check(movie.Title != "", "title", "must be provided")
 	v.Check(len(movie.Title) <= 500, "title", "must not be more than 500 bytes long")
 
