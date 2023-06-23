@@ -65,7 +65,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 		}
 		mu.Lock()
 		if _, found := clients[ip]; !found {
-			clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
+			clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(app.config.limiter.rps), app.config.limiter.burst)}
 		}
 		// Mêtodo Allow consome um token toda vez que é chamado
 		// Quando não tem token retorna false
