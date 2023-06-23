@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"sync"
+	"time"
 
 	"golang.org/x/time/rate"
 )
 
 func (app *application) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Create a deferred function (which will always be run in the event of a panic
-		// as Go unwinds the stack).
 		defer func() {
 			// Use the builtin recover function to check if there has been a panic or
 			// not.
@@ -33,16 +34,47 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 }
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
-	// Inicializa um limiter de no 2 request por segundo. Com no maximo 4 request antes do burst
-	limiter := rate.NewLimiter(2, 4)
 
+	type client struct {
+		limiter  *rate.Limiter
+		lastSeen time.Time
+	}
+
+	var (
+		mu      sync.Mutex
+		clients = make(map[string]*client)
+	)
+
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			mu.Lock()
+			for ip, client := range clients {
+				if time.Since(client.lastSeen) > 3*time.Minute {
+					delete(clients, ip)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		mu.Lock()
+		if _, found := clients[ip]; !found {
+			clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
+		}
 		// Mêtodo Allow consome um token toda vez que é chamado
 		// Quando não tem token retorna false
-		if !limiter.Allow() {
+		if !clients[ip].limiter.Allow() {
+			mu.Unlock()
 			app.rateLimitExceededResponse(w, r)
 			return
 		}
+		mu.Unlock()
 		next.ServeHTTP(w, r)
 	})
 }
