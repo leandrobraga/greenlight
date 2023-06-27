@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -65,18 +62,10 @@ func main() {
 		models: data.NewModels(db),
 	}
 
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.port),
-		Handler:      app.routes(),
-		ErrorLog:     log.New(logger, "", 0), // O server do go pode usar o proprio log para alguns erros de panico. Fazendo isso garante que usará o log criado nosso. Isso pode ser feito por causa da função Writer criada que atende a interface io.Writer
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+	err = app.serve()
+	if err != nil {
+		logger.PrintFatal(err, nil)
 	}
-
-	logger.PrintInfo("Starting server", map[string]string{"addr": srv.Addr, "env": cfg.env})
-	err = srv.ListenAndServe()
-	logger.PrintFatal(err, nil)
 }
 
 func openDB(cfg config) (*sql.DB, error) {
