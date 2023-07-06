@@ -53,9 +53,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	app.wg.Add(1)
 	go func() {
 		// caso tenha algum panic ele captura o erro e põe no log
 		// e não mata a aplicação
+		defer app.wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
 				app.logger.PrintError(fmt.Errorf("%s", err), nil)
