@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/leandrobraga/greenlight/internal/data"
 	"github.com/leandrobraga/greenlight/internal/validator"
@@ -53,6 +54,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 	app.wg.Add(1)
 	go func() {
 		// caso tenha algum panic ele captura o erro e põe no log
@@ -63,7 +69,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 				app.logger.PrintError(fmt.Errorf("%s", err), nil)
 			}
 		}()
-		err = app.mailer.Sender(user.Email, "user_welcome.tmpl", user)
+		data := map[string]any{
+			"activationToken": token.Plaintext,
+			"userID":          user.ID,
+		}
+		err = app.mailer.Sender(user.Email, "user_welcome.tmpl", data)
 		if err != nil {
 			app.logger.PrintError(err, nil)
 			return
